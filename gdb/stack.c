@@ -55,6 +55,9 @@
 #include "gdbsupport/def-vector.h"
 #include "cli/cli-option.h"
 #include "cli/cli-style.h"
+#include "user-regs.h"
+
+#include <sstream>
 
 /* The possible choices of "set print frame-arguments", and the value
    of this setting.  */
@@ -3296,6 +3299,41 @@ find_frame_for_address (CORE_ADDR address)
   return NULL;
 }
 
+static void
+fiber_base_command (const char *arg, int from_tty)
+{
+}
+
+static void
+fiber_view_command (const char *arg, int from_tty)
+{
+  saved_registers regs_override;
+
+  std::stringstream ss(arg, std::ios_base::in);
+
+  struct gdbarch *gdbarch = get_frame_arch (get_current_frame());
+
+  const static char* jmpbuf_regs[] = {"rbx", "rbp", "r12", "r13", "r14", "r15", "rsp", "rip"};
+
+  for (auto reg : jmpbuf_regs) {
+      uint64_t val;
+      ss >> std::hex >> val;
+
+      const auto regnum = user_reg_map_name_to_regnum (gdbarch, reg, strlen(reg));
+
+      std::vector<gdb_byte> raw_val(sizeof(val), 0);
+      memcpy(raw_val.data(), reinterpret_cast<gdb_byte*>(&val), sizeof(val));
+      regs_override.reg_map.emplace(regnum, std::move(raw_val));
+  }
+
+  set_fiber_register_override(regs_override);
+}
+
+static void
+fiber_reset_command (const char *arg, int from_tty)
+{
+    reset_fiber_register_override();
+}
 
 
 /* Commands with a prefix of `frame apply'.  */
@@ -3309,6 +3347,8 @@ static struct cmd_list_element *select_frame_cmd_list = NULL;
 
 /* Commands with a prefix of `info frame'.  */
 static struct cmd_list_element *info_frame_cmd_list = NULL;
+
+static struct cmd_list_element *fiber_cmd_list = NULL;
 
 void _initialize_stack ();
 void
@@ -3604,9 +3644,22 @@ If AUTO, display disassembly of next instruction only if the source line\n\
 cannot be displayed.\n\
 If OFF (which is the default), never display the disassembly of the next\n\
 source line."),
-				NULL,
-				show_disassemble_next_line,
-				&setlist, &showlist);
+			        NULL,
+			        show_disassemble_next_line,
+			        &setlist, &showlist);
+
+  add_prefix_cmd ("fiber", class_stack, &fiber_base_command,
+		  _("Inspect or change the currently viewed fiber.\n"),
+		  &fiber_cmd_list, 1, &cmdlist);
+
+  add_cmd ("view", class_stack, &fiber_view_command,
+	   _("Select the fiber to view.\n"),
+	   &fiber_cmd_list);
+
+  add_cmd ("reset", class_stack, &fiber_reset_command,
+	   _("Reset to the currently viewed fiber.\n"),
+	   &fiber_cmd_list);
+
   disassemble_next_line = AUTO_BOOLEAN_FALSE;
 
   gdb::option::add_setshow_cmds_for_options

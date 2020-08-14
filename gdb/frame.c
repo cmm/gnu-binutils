@@ -53,6 +53,8 @@
 
 static struct frame_info *sentinel_frame;
 
+static struct saved_registers fiber_regs_override;
+
 /* Number of calls to reinit_frame_cache.  */
 static unsigned int frame_cache_generation = 0;
 
@@ -1573,7 +1575,7 @@ create_sentinel_frame (struct program_space *pspace, struct regcache *regcache)
   /* Explicitly initialize the sentinel frame's cache.  Provide it
      with the underlying regcache.  In the future additional
      information, such as the frame's thread will be added.  */
-  frame->prologue_cache = sentinel_frame_cache (regcache);
+  frame->prologue_cache = sentinel_frame_cache (regcache, &fiber_regs_override);
   /* For the moment there is only one sentinel frame implementation.  */
   frame->unwind = &sentinel_frame_unwind;
   /* Link this frame back to itself.  The frame is self referential
@@ -3080,6 +3082,18 @@ frame_prepare_for_sniffer (struct frame_info *frame,
 {
   gdb_assert (frame->unwind == NULL);
   frame->unwind = unwind;
+}
+
+void set_fiber_register_override(saved_registers regs_override)
+{
+  fiber_regs_override = std::move(regs_override);
+  reinit_frame_cache();
+}
+
+void reset_fiber_register_override()
+{
+  fiber_regs_override.reg_map.clear();
+  reinit_frame_cache();
 }
 
 static struct cmd_list_element *set_backtrace_cmdlist;

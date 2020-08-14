@@ -72,6 +72,7 @@
 #include "language.h"
 #include "cli/cli-option.h"
 #include "gdbsupport/common-debug.h"
+#include <map>
 
 struct symtab_and_line;
 struct frame_unwind;
@@ -996,5 +997,11 @@ extern void set_frame_previous_pc_masked (struct frame_info *frame);
 
 extern bool get_frame_pc_masked (const struct frame_info *frame);
 
+struct saved_registers {
+    std::map<int, const std::vector<gdb_byte>> reg_map;
+};
+
+extern void set_fiber_register_override(saved_registers regs_override);
+extern void reset_fiber_register_override();
 
 #endif /* !defined (FRAME_H)  */

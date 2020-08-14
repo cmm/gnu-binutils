@@ -23,19 +23,23 @@
 #include "sentinel-frame.h"
 #include "inferior.h"
 #include "frame-unwind.h"
+#include "frame.h"
 
 struct frame_unwind_cache
 {
   struct regcache *regcache;
+  struct saved_registers *saved_regs;
 };
 
 void *
-sentinel_frame_cache (struct regcache *regcache)
+sentinel_frame_cache (struct regcache *regcache, struct saved_registers *saved_regs)
 {
   struct frame_unwind_cache *cache = 
     FRAME_OBSTACK_ZALLOC (struct frame_unwind_cache);
 
   cache->regcache = regcache;
+  cache->saved_regs = saved_regs;
+
   return cache;
 }
 
@@ -50,8 +54,28 @@ sentinel_frame_prev_register (struct frame_info *this_frame,
     = (struct frame_unwind_cache *) *this_prologue_cache;
   struct value *value;
 
-  value = cache->regcache->cooked_read_value (regnum);
-  VALUE_NEXT_FRAME_ID (value) = sentinel_frame_id;
+  if (!cache->saved_regs) {
+      value = cache->regcache->cooked_read_value (regnum);
+      VALUE_NEXT_FRAME_ID (value) = sentinel_frame_id;
+      return value;
+  }
+
+  auto it = cache->saved_regs->reg_map.find(regnum);
+
+  if (it == cache->saved_regs->reg_map.end())
+    {
+      value = cache->regcache->cooked_read_value (regnum);
+      VALUE_NEXT_FRAME_ID (value) = sentinel_frame_id;
+      return value;
+    }
+
+  auto* arch = cache->regcache->arch ();
+
+  value = allocate_value (register_type (arch, regnum));
+  VALUE_LVAL (value) = lval_register;
+  VALUE_REGNUM (value) = regnum;
+
+  memcpy(value_contents_raw (value), it->second.data(), it->second.size());
 
   return value;
 }

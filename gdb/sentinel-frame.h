@@ -30,7 +30,7 @@ struct regcache;
 /* Pump prime the sentinel frame's cache.  Since this needs the
    REGCACHE provide that here.  */
 
-extern void *sentinel_frame_cache (struct regcache *regcache);
+extern void *sentinel_frame_cache (struct regcache *regcache, struct saved_registers *saved_regs = nullptr);
 
 /* At present there is only one type of sentinel frame.  */
 
